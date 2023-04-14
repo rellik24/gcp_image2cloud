@@ -1,0 +1,7 @@
+*.txt
+.devcontainer.json
+server-ca.cer
+.DS_Store
+getimg
+*.png
+*.json
