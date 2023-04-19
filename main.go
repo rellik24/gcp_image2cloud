@@ -2,49 +2,37 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"log"
+	"net/http"
 	"os"
 
-	"cloud.google.com/go/storage"
+	"github.com/GoogleCloudPlatform/golang-samples/run/helloworld/gconn"
 )
 
 func main() {
-	ctx := context.Background()
+	log.Print("starting server...")
+	http.HandleFunc("/", handler)
 
-	// Creates a client.
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+	// Determine port for HTTP service.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
-	defer client.Close()
-
-	// Sets the name for the new bucket.
-	bucketName := "rellikimage2cloud"
-
-	// Creates a Bucket instance.
-	bucket := client.Bucket(bucketName)
-
-	// fmt.Printf("Bucket %v created.\n", bucketName)
-	// Read the object1 from bucket.
-	rc, err := bucket.Object("cat.png").NewReader(ctx)
-	if err != nil {
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
+	fmt.Println("port", port)
+	// Start HTTP server.
+	log.Printf("listening on port %s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
-	defer rc.Close()
+}
 
-	// 讀取所有檔案內容
-	fileContent, err := io.ReadAll(rc)
-	if err != nil {
-		log.Fatal(err)
+func handler(w http.ResponseWriter, r *http.Request) {
+	name := os.Getenv("NAME")
+	if name == "" {
+		name = "World"
 	}
-
-	// 建立目標檔案
-	err = os.WriteFile("cat.png", fileContent, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("完成")
+	fmt.Fprintf(w, "Hello %s!\n", name)
+	gconn.Get(w)
 }
