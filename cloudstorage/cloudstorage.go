@@ -1,17 +1,28 @@
 // Sample storage-quickstart creates a Google Cloud Storage bucket.
-package gconn
+package cloudstorage
 
 import (
 	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
 )
 
-func Get(w http.ResponseWriter) {
+func Handler(w http.ResponseWriter, r *http.Request) {
+	name := os.Getenv("NAME")
+	if name == "" {
+		name = "World"
+	}
+	fmt.Fprintf(w, "Hello %s!\n", name)
+	getStorage(w)
+}
+
+// 存取 Storage 資料
+func getStorage(w http.ResponseWriter) {
 	ctx := context.Background()
 
 	// Creates a client.
@@ -46,12 +57,10 @@ func Get(w http.ResponseWriter) {
 	for {
 		attrs, err := it.Next()
 		if err == iterator.Done {
-			fmt.Println("57:", err.Error())
 			break
 		}
 		if err != nil {
 			log.Fatal(err)
-			fmt.Println("61:", err.Error())
 		}
 		names = append(names, attrs.Name)
 	}
