@@ -2,6 +2,6 @@
 .devcontainer.json
 server-ca.cer
 .DS_Store
-getimg
+main
 *.png
 *.json

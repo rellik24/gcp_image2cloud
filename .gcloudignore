@@ -12,6 +12,6 @@ vendor/
 .gitignore
 *.txt
 server-ca.cer
-getimg
+main
 *.png
 *.json

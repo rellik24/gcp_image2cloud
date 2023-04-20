@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.2.3
+	cloud.google.com/go/kms v1.10.1
 	cloud.google.com/go/storage v1.30.1
 	github.com/denisenkom/go-mssqldb v0.12.3
 	google.golang.org/api v0.117.0
