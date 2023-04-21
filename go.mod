@@ -1,4 +1,4 @@
-module github.com/GoogleCloudPlatform/golang-samples/run/helloworld
+module github.com/rellik24/image2cloud
 
 go 1.19
 
@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/storage v1.30.1
 	github.com/denisenkom/go-mssqldb v0.12.3
 	google.golang.org/api v0.117.0
+	google.golang.org/protobuf v1.30.0
 )
 
 require (
@@ -35,5 +36,4 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/grpc v1.54.0 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
 )
