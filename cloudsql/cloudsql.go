@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -16,6 +17,8 @@ var (
 	indexTmpl = template.Must(template.New("index").Parse(indexHTML))
 	db        *sql.DB
 	once      sync.Once
+	uid       int
+	username  string
 )
 
 // getDB lazily instantiates a database connection pool. Users of Cloud Run or
@@ -28,21 +31,39 @@ func getDB() *sql.DB {
 	return db
 }
 
-// // migrateDB creates the votes table if it does not already exist.
-// func migrateDB(db *sql.DB) error {
-// 	// Drop the votes table if it already exists.
-// 	if _, err := db.Exec("DROP TABLE IF EXISTS votes;"); err != nil {
-// 		log.Fatalf("DB.Exec: unable to drop votes table: %v", err)
-// 	}
-// 	// Create the votes table.
-// 	createVotes := `CREATE TABLE votes (
-// 		id int IDENTITY(1,1) PRIMARY KEY,
-// 		created_at DATETIME NOT NULL,
-// 		candidate CHAR(6) NOT NULL
-// 	);`
-// 	_, err := db.Exec(createVotes)
-// 	return err
-// }
+// migrateDB creates the votes table if it does not already exist.
+func migrateDB(db *sql.DB) error {
+	if _, err := db.Exec("DROP TABLE IF EXISTS Image;"); err != nil {
+		log.Fatalf("DB.Exec: unable to drop Image table: %v", err)
+	}
+	if _, err := db.Exec("DROP TABLE IF EXISTS Members;"); err != nil {
+		log.Fatalf("DB.Exec: unable to drop User table: %v", err)
+	}
+
+	// Create the user table.
+	createUser := `CREATE TABLE Members (
+		UID int IDENTITY(1,1) PRIMARY KEY,
+		Account nvarchar(50) UNIQUE NOT NULL,
+		Username nvarchar(50) NOT NULL,
+		PWD nvarchar(255) NOT NULL,
+		Created_at DATETIME NOT NULL
+	);`
+	if _, err := db.Exec(createUser); err != nil {
+		return err
+	}
+
+	// Create the images table.
+	createImage := `CREATE TABLE Image (
+		ID int IDENTITY(1,1) PRIMARY KEY,
+		IName nvarchar(50) NOT NULL,
+		FileSize nvarchar(50) NOT NULL,
+		Created_at DATETIME NOT NULL,
+		Link nvarchar(255) NOT NULL,
+		UID int REFERENCES Members (UID)
+	);`
+	_, err := db.Exec(createImage)
+	return err
+}
 
 // recentVotes returns the last five votes cast.
 func recentVotes(db *sql.DB) ([]vote, error) {
@@ -183,7 +204,7 @@ func Votes(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		renderIndex(w, r, getDB())
 	case http.MethodPost:
-		saveVote(w, r, getDB())
+		PostProcess(w, r, getDB())
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -244,6 +265,59 @@ func saveVote(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 	fmt.Fprintf(w, "Vote successfully cast for %s!", team)
+}
+
+// PostProcess:
+func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	if err := r.ParseForm(); err != nil {
+		log.Printf("AddUser: failed to parse form: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	queryName := strings.Split(r.RequestURI, "?")[0]
+	switch queryName {
+	case "/addUser":
+		usr := r.FormValue("username")
+		account := r.FormValue("account")
+		pwd := r.FormValue("pwd")
+		if usr == "" || account == "" || pwd == "" {
+			log.Printf("Add member error")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// [START cloud_sql_sqlserver_databasesql_connection]
+		addUser := "INSERT INTO Members (account, username, pwd, created_at) VALUES (@account, @username, @pwd, GETDATE())"
+		_, err := db.Exec(addUser, sql.Named("account", account), sql.Named("username", usr), sql.Named("pwd", pwd))
+		// [END cloud_sql_sqlserver_databasesql_connection]
+
+		if err != nil {
+			log.Printf("Error: unable to add user: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintf(w, "Member successfully add: %s!", usr)
+
+	case "/verifyUser":
+		account := r.FormValue("account")
+		pwd := r.FormValue("pwd")
+		if account == "" || pwd == "" {
+			log.Printf("Account or Password should not be empty.")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		verifyUser := "EXEC dbo.VerifyUser @account, @pwd"
+		if err := db.QueryRow(verifyUser, sql.Named("account", account), sql.Named("pwd", pwd)).Scan(&uid, &username); err != nil {
+			log.Printf("Error: unable to add user: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintf(w, "Member successfully verify: Hi %s !", username)
+
+	default:
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 var indexHTML = `
@@ -323,7 +397,7 @@ var indexHTML = `
 				console.log(344)
             }
         };
-        xhr.open("POST", "/sql/Votes", true);
+        xhr.open("POST", "/Votes", true);
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
         xhr.send("team=" + team);
     }

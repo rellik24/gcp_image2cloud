@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/GoogleCloudPlatform/golang-samples/run/helloworld/cloudsql"
-	"github.com/GoogleCloudPlatform/golang-samples/run/helloworld/cloudstorage"
+	"github.com/rellik24/image2cloud/cloudsql"
+	"github.com/rellik24/image2cloud/cloudstorage"
 )
 
 func main() {
