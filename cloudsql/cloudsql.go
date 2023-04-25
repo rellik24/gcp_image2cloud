@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rellik24/image2cloud/cloudkey"
 )
 
 var (
@@ -285,10 +287,14 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-
+		pwd, err := cloudkey.SignMac(w, pwd)
+		if err != nil {
+			log.Println(err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+		}
 		// [START cloud_sql_sqlserver_databasesql_connection]
 		addUser := "INSERT INTO Members (account, username, pwd, created_at) VALUES (@account, @username, @pwd, GETDATE())"
-		_, err := db.Exec(addUser, sql.Named("account", account), sql.Named("username", usr), sql.Named("pwd", pwd))
+		_, err = db.Exec(addUser, sql.Named("account", account), sql.Named("username", usr), sql.Named("pwd", pwd))
 		// [END cloud_sql_sqlserver_databasesql_connection]
 
 		if err != nil {
@@ -306,7 +312,11 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-
+		pwd, err := cloudkey.SignMac(w, pwd)
+		if err != nil {
+			log.Println(err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+		}
 		verifyUser := "EXEC dbo.VerifyUser @account, @pwd"
 		if err := db.QueryRow(verifyUser, sql.Named("account", account), sql.Named("pwd", pwd)).Scan(&uid, &username); err != nil {
 			log.Printf("Error: unable to add user: %v", err)
