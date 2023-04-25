@@ -7,6 +7,8 @@ require (
 	cloud.google.com/go/kms v1.10.1
 	cloud.google.com/go/storage v1.30.1
 	github.com/denisenkom/go-mssqldb v0.12.3
+	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/golang-jwt/jwt/v5 v5.0.0
 	google.golang.org/api v0.117.0
 	google.golang.org/protobuf v1.30.0
 )

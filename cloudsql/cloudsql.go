@@ -19,8 +19,6 @@ var (
 	indexTmpl = template.Must(template.New("index").Parse(indexHTML))
 	db        *sql.DB
 	once      sync.Once
-	uid       int
-	username  string
 )
 
 // getDB lazily instantiates a database connection pool. Users of Cloud Run or
@@ -304,7 +302,7 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		}
 		fmt.Fprintf(w, "Member successfully add: %s!", usr)
 
-	case "/verifyUser":
+	case "/login":
 		account := r.FormValue("account")
 		pwd := r.FormValue("pwd")
 		if account == "" || pwd == "" {
@@ -318,12 +316,23 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			w.WriteHeader(http.StatusBadRequest)
 		}
 		verifyUser := "EXEC dbo.VerifyUser @account, @pwd"
+
+		var uid int
+		var username string
+
 		if err := db.QueryRow(verifyUser, sql.Named("account", account), sql.Named("pwd", pwd)).Scan(&uid, &username); err != nil {
 			log.Printf("Error: unable to add user: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 		fmt.Fprintf(w, "Member successfully verify: Hi %s !", username)
+
+		str, err := cloudkey.CreateToken(uid, username)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+		fmt.Printf("JSON Web Token %s \n!", str)
 
 	default:
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

@@ -8,7 +8,6 @@ import (
 
 	"github.com/rellik24/image2cloud/cloudkey"
 	"github.com/rellik24/image2cloud/cloudsql"
-	"github.com/rellik24/image2cloud/cloudstorage"
 )
 
 var (
@@ -24,7 +23,7 @@ func main() {
 
 	Init()
 	http.HandleFunc("/", cloudsql.Votes)
-	http.HandleFunc("/storage", cloudstorage.Handler)
+	// http.HandleFunc("/storage", cloudstorage.Handler)
 
 	// Start HTTP server.
 	log.Printf("listening on port %s", port)
