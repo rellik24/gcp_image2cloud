@@ -10,15 +10,18 @@ import (
 	"github.com/rellik24/image2cloud/cloudstorage"
 )
 
+var (
+	port        string
+	project_id  string
+	key_ring    string
+	key_name    string
+	key_version string
+)
+
 func main() {
 	log.Print("starting server...")
 
-	// Determine port for HTTP service.
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
+	Init()
 	http.HandleFunc("/", cloudsql.Votes)
 	http.HandleFunc("/storage", cloudstorage.Handler)
 
@@ -26,5 +29,31 @@ func main() {
 	log.Printf("listening on port %s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// Init: Get ENV variable
+func Init() {
+	// Determine port for HTTP service.
+	port = os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	project_id = os.Getenv("PROJECT_ID")
+	if project_id == "" {
+		log.Fatal("Can't get ENV variable: PROJECT_ID")
+	}
+	key_ring = os.Getenv("KEY_RING")
+	if key_ring == "" {
+		log.Fatal("Can't get ENV variable: KEY_RING")
+	}
+	key_name = os.Getenv("KEY_NAME")
+	if key_name == "" {
+		log.Fatal("Can't get ENV variable: KEY_NAME")
+	}
+	key_version = os.Getenv("KEY_VERSION")
+	if key_version == "" {
+		log.Fatal("Can't get ENV variable: KEY_VERSION")
 	}
 }
