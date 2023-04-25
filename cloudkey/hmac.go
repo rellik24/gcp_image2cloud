@@ -43,3 +43,8 @@ func SignMac(w io.Writer, data string) error {
 	fmt.Fprintf(w, "Signature: %s", encodedSignature)
 	return nil
 }
+
+// 設定 KMS HAMC Key Name
+func SetHMAC(project_id, key_ring, key_name, key_version string) {
+	fullKeyName = fmt.Sprintf("projects/%s/locations/global/keyRings/%s/cryptoKeys/%s/cryptoKeyVersions/%s", project_id, key_ring, key_name, key_version)
+}

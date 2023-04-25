@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/rellik24/image2cloud/cloudkey"
 	"github.com/rellik24/image2cloud/cloudsql"
 	"github.com/rellik24/image2cloud/cloudstorage"
 )
@@ -56,4 +57,6 @@ func Init() {
 	if key_version == "" {
 		log.Fatal("Can't get ENV variable: KEY_VERSION")
 	}
+
+	cloudkey.SetHMAC(project_id, key_ring, key_name, key_version)
 }
