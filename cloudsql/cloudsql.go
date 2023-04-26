@@ -353,17 +353,23 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 
 		switch queryName {
 		case "/download":
-			objectName := r.FormValue("filename")
-			// WIP: sql to check name is valid
-			if err := cloudstorage.DownloadFile(w, fmt.Sprintf("%s/%s", account, objectName), "output.png"); err != nil {
+			filename := r.FormValue("filename")
+			if err := cloudstorage.DownloadFile(w, filename, "output.png"); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
 			}
 
 		case "/upload":
-			objectName := r.FormValue("filename")
-			if err := cloudstorage.UploadFile(w, account, objectName); err != nil {
+			filename := r.FormValue("filename")
+			if err := cloudstorage.UploadFile(w, account, filename); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				log.Println(err.Error())
+				return
+			}
+
+			uploadFile := "exec dbo.InsertImage @account, @filename"
+			if _, err := db.Exec(uploadFile, sql.Named("account", account), sql.Named("filename", filename)); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
