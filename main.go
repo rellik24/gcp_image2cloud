@@ -8,6 +8,7 @@ import (
 
 	"github.com/rellik24/image2cloud/cloudkey"
 	"github.com/rellik24/image2cloud/cloudsql"
+	"github.com/rellik24/image2cloud/cloudstorage"
 )
 
 var (
@@ -23,7 +24,6 @@ func main() {
 
 	Init()
 	http.HandleFunc("/", cloudsql.Votes)
-	// http.HandleFunc("/storage", cloudstorage.Handler)
 
 	// Start HTTP server.
 	log.Printf("listening on port %s", port)
@@ -58,4 +58,10 @@ func Init() {
 	}
 
 	cloudkey.SetHMAC(project_id, key_ring, key_name, key_version)
+
+	bucket_name := os.Getenv("BUCKET_NAME")
+	if key_version == "" {
+		log.Fatal("Can't get ENV variable: BUCKET_NAME")
+	}
+	cloudstorage.Set(bucket_name)
 }

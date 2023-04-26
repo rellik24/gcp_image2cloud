@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rellik24/image2cloud/cloudkey"
+	"github.com/rellik24/image2cloud/cloudstorage"
 )
 
 var (
@@ -56,9 +57,10 @@ func migrateDB(db *sql.DB) error {
 	createImage := `CREATE TABLE Image (
 		ID int IDENTITY(1,1) PRIMARY KEY,
 		IName nvarchar(50) NOT NULL,
+		HashName nvarchar(65) NOT NULL,
+		Link nvarchar(255) NOT NULL,
 		FileSize nvarchar(50) NOT NULL,
 		Created_at DATETIME NOT NULL,
-		Link nvarchar(255) NOT NULL,
 		UID int REFERENCES Members (UID)
 	);`
 	_, err := db.Exec(createImage)
@@ -327,12 +329,46 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		}
 		fmt.Fprintf(w, "Member successfully verify: Hi %s !", username)
 
-		str, err := cloudkey.CreateToken(uid, username)
+		str, err := cloudkey.CreateToken(uid, account, username)
 		if err != nil {
 			fmt.Println(err.Error())
 			return
 		}
 		fmt.Printf("JSON Web Token %s \n!", str)
+
+	case "/getImage", "/upload", "/download":
+		token := r.FormValue("token")
+		claim, err := cloudkey.ValidateToken(token)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Println(err.Error())
+			return
+		}
+		account, ok := claim["account"].(string)
+		if ok {
+			cloudstorage.ListObjects(w, account)
+		} else {
+			return
+		}
+
+		switch queryName {
+		case "/download":
+			objectName := r.FormValue("filename")
+			// WIP: sql to check name is valid
+			if err := cloudstorage.DownloadFile(w, fmt.Sprintf("%s/%s", account, objectName), "output.png"); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				log.Println(err.Error())
+				return
+			}
+
+		case "/upload":
+			objectName := r.FormValue("filename")
+			if err := cloudstorage.UploadFile(w, account, objectName); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				log.Println(err.Error())
+				return
+			}
+		}
 
 	default:
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

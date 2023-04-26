@@ -10,7 +10,7 @@ import (
 var sampleSecretKey = []byte("SecretYouShouldHide")
 
 // CreateToken :
-func CreateToken(uid int, username string) (string, error) {
+func CreateToken(uid int, account, username string) (string, error) {
 	now := time.Now()
 	// 加上 24 小時
 	future := now.Add(24 * time.Hour)
@@ -19,6 +19,7 @@ func CreateToken(uid int, username string) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"uid":      uid,
+		"account":  account,
 		"username": username,
 		"exp":      timestamp,
 	})
