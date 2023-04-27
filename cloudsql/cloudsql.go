@@ -142,8 +142,8 @@ func API(w http.ResponseWriter, r *http.Request) {
 // getProcess:
 func getProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	if err := r.ParseForm(); err != nil {
-		log.Printf("AddUser: failed to parse form: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Printf("GET: failed to parse form: %v", err)
+		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
 
@@ -175,7 +175,8 @@ func getProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			w.WriteHeader(http.StatusBadRequest)
 			log.Println("Invalid image name")
 		}
-
+	default:
+		http.Error(w, "Invalid API", http.StatusBadRequest)
 	}
 }
 
@@ -279,7 +280,7 @@ func postProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		}
 
 	default:
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, "Invalid API", http.StatusBadRequest)
 	}
 }
 
