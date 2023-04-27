@@ -23,7 +23,10 @@ func main() {
 	log.Print("starting server...")
 
 	Init()
-	http.HandleFunc("/", cloudsql.Votes)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "index.html")
+	})
+	http.HandleFunc("/api/", cloudsql.API)
 
 	// Start HTTP server.
 	log.Printf("listening on port %s", port)

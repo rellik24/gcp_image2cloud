@@ -2,10 +2,10 @@ package cloudsql
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"html/template"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -65,77 +65,6 @@ func migrateDB(db *sql.DB) error {
 	);`
 	_, err := db.Exec(createImage)
 	return err
-}
-
-// recentVotes returns the last five votes cast.
-func recentVotes(db *sql.DB) ([]vote, error) {
-	rows, err := db.Query("SELECT TOP 5 RTRIM(candidate), created_at FROM votes ORDER BY created_at DESC")
-	if err != nil {
-		return nil, fmt.Errorf("DB.Query: %v", err)
-	}
-	defer rows.Close()
-
-	var votes []vote
-	for rows.Next() {
-		var (
-			candidate string
-			voteTime  time.Time
-		)
-		err := rows.Scan(&candidate, &voteTime)
-		if err != nil {
-			return nil, fmt.Errorf("Rows.Scan: %v", err)
-		}
-		votes = append(votes, vote{Candidate: candidate, VoteTime: voteTime})
-	}
-	return votes, nil
-}
-
-// formatMargin calculates the difference between votes and returns a human
-// friendly margin (e.g., 2 votes)
-func formatMargin(a, b int) string {
-	diff := int(math.Abs(float64(a - b)))
-	margin := fmt.Sprintf("%d votes", diff)
-	// remove pluralization when diff is just one
-	if diff == 1 {
-		margin = "1 vote"
-	}
-	return margin
-}
-
-// votingData is used to pass data to the HTML template.
-type votingData struct {
-	TabsCount   int
-	SpacesCount int
-	VoteMargin  string
-	RecentVotes []vote
-}
-
-// currentTotals retrieves all voting data from the database.
-func currentTotals(db *sql.DB) (votingData, error) {
-	var (
-		tabs   int
-		spaces int
-	)
-	err := db.QueryRow("SELECT count(id) FROM votes WHERE candidate='TABS'").Scan(&tabs)
-	if err != nil {
-		return votingData{}, fmt.Errorf("DB.QueryRow: %v", err)
-	}
-	err = db.QueryRow("SELECT count(id) FROM votes WHERE candidate='SPACES'").Scan(&spaces)
-	if err != nil {
-		return votingData{}, fmt.Errorf("DB.QueryRow: %v", err)
-	}
-
-	recent, err := recentVotes(db)
-	if err != nil {
-		return votingData{}, fmt.Errorf("recentVotes: %v", err)
-	}
-
-	return votingData{
-		TabsCount:   tabs,
-		SpacesCount: spaces,
-		VoteMargin:  formatMargin(tabs, spaces),
-		RecentVotes: recent,
-	}, nil
 }
 
 // mustConnect creates a connection to the database based on environment
@@ -199,78 +128,45 @@ func configureConnectionPool(db *sql.DB) {
 	// [END cloud_sql_sqlserver_databasesql_timeout]
 }
 
-// Votes handles HTTP requests to alternatively show the voting app or to save a
-// vote.
-func Votes(w http.ResponseWriter, r *http.Request) {
+// API function handles HTTP requests
+func API(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		renderIndex(w, r, getDB())
+		getProcess(w, r, getDB())
 	case http.MethodPost:
-		PostProcess(w, r, getDB())
+		postProcess(w, r, getDB())
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-// vote contains a single row from the votes table in the database. Each vote
-// includes a candidate ("TABS" or "SPACES") and a timestamp.
-type vote struct {
-	Candidate string
-	VoteTime  time.Time
-}
-
-// renderIndex renders the HTML application with the voting form, current
-// totals, and recent votes.
-func renderIndex(w http.ResponseWriter, r *http.Request, db *sql.DB) {
-	t, err := currentTotals(db)
-	if err != nil {
-		log.Printf("renderIndex: failed to read current totals: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	err = indexTmpl.Execute(w, t)
-	if err != nil {
-		log.Printf("renderIndex: failed to render template: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-}
-
-// saveVote saves a vote passed as http.Request form data.
-func saveVote(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+// getProcess:
+func getProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	if err := r.ParseForm(); err != nil {
-		log.Printf("saveVote: failed to parse form: %v", err)
+		log.Printf("AddUser: failed to parse form: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	team := r.FormValue("team")
-	if team == "" {
-		log.Printf("saveVote: \"team\" property missing from form submission")
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	queryName := strings.Split(r.RequestURI, "?")[0]
+	switch queryName {
+	case "/api/download":
+		token := r.FormValue("token")
+		_, err := authToken(token)
+		if err != nil {
+			return
+		}
+		filename := r.FormValue("filename")
+		if err := cloudstorage.DownloadFile(w, filename, "download"); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			log.Println(err.Error())
+			return
+		}
 	}
-
-	if team != "TABS" && team != "SPACES" {
-		log.Printf("saveVote: \"team\" property should be \"TABS\" or \"SPACES\", was %q", team)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	// [START cloud_sql_sqlserver_databasesql_connection]
-	insertVote := "INSERT INTO votes (candidate, created_at) VALUES (@TEAM, GETDATE())"
-	_, err := db.Exec(insertVote, sql.Named("TEAM", team))
-	// [END cloud_sql_sqlserver_databasesql_connection]
-
-	if err != nil {
-		log.Printf("saveVote: unable to save vote: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	}
-	fmt.Fprintf(w, "Vote successfully cast for %s!", team)
 }
 
-// PostProcess:
-func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+// postProcess:
+func postProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	if err := r.ParseForm(); err != nil {
 		log.Printf("AddUser: failed to parse form: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -278,7 +174,7 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 	queryName := strings.Split(r.RequestURI, "?")[0]
 	switch queryName {
-	case "/addUser":
+	case "/api/addUser":
 		usr := r.FormValue("username")
 		account := r.FormValue("account")
 		pwd := r.FormValue("pwd")
@@ -304,7 +200,7 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		}
 		fmt.Fprintf(w, "Member successfully add: %s!", usr)
 
-	case "/login":
+	case "/api/login":
 		account := r.FormValue("account")
 		pwd := r.FormValue("pwd")
 		if account == "" || pwd == "" {
@@ -336,23 +232,14 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		}
 		fmt.Printf("JSON Web Token %s \n!", str)
 
-	case "/getImage", "/upload", "/download":
+	case "/api/getImage", "/api/upload", "/api/download":
 		token := r.FormValue("token")
-		claim, err := cloudkey.ValidateToken(token)
+		account, err := authToken(token)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Println(err.Error())
 			return
 		}
-		account, ok := claim["account"].(string)
-		if ok {
-			cloudstorage.ListObjects(w, account)
-		} else {
-			return
-		}
-
 		switch queryName {
-		case "/download":
+		case "/api/download":
 			filename := r.FormValue("filename")
 			if err := cloudstorage.DownloadFile(w, filename, "output.png"); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
@@ -360,7 +247,7 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 				return
 			}
 
-		case "/upload":
+		case "/api/upload":
 			filename := r.FormValue("filename")
 			if err := cloudstorage.UploadFile(w, account, filename); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
@@ -379,6 +266,20 @@ func PostProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	default:
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// authToken :
+func authToken(token string) (string, error) {
+	claim, err := cloudkey.ValidateToken(token)
+	if err != nil {
+		fmt.Println(err.Error())
+		return "", err
+	}
+	account, ok := claim["account"].(string)
+	if !ok {
+		return "", errors.New("parse token error")
+	}
+	return account, nil
 }
 
 var indexHTML = `
