@@ -150,16 +150,29 @@ func getProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	switch queryName {
 	case "/api/download":
 		token := r.FormValue("token")
-		_, err := authToken(token)
+		account, err := authToken(token)
 		if err != nil {
 			return
 		}
 		filename := r.FormValue("filename")
-		if err := cloudstorage.DownloadFile(w, filename, "download"); err != nil {
+		downloadFile := "exec dbo.DownloadImage @account, @filename"
+		var result int
+		if err := db.QueryRow(downloadFile, sql.Named("account", account), sql.Named("filename", filename)).Scan(&result); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			log.Println(err.Error())
 			return
 		}
+		if result != 0 {
+			if err := cloudstorage.DownloadFile(w, filename, "download"); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				log.Println(err.Error())
+				return
+			}
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+			log.Println("Invalid image name")
+		}
+
 	}
 }
 
@@ -230,21 +243,13 @@ func postProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		}
 		fmt.Printf("JSON Web Token %s \n!", str)
 
-	case "/api/getImage", "/api/upload", "/api/download":
+	case "/api/getImage", "/api/upload":
 		token := r.FormValue("token")
 		account, err := authToken(token)
 		if err != nil {
 			return
 		}
 		switch queryName {
-		case "/api/download":
-			filename := r.FormValue("filename")
-			if err := cloudstorage.DownloadFile(w, filename, "output.png"); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				log.Println(err.Error())
-				return
-			}
-
 		case "/api/upload":
 			filename := r.FormValue("filename")
 			if err := cloudstorage.UploadFile(w, account, filename); err != nil {
