@@ -4,14 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/rellik24/image2cloud/cloudimage"
 )
 
 // UploadFile: uploads an object.
-func UploadFile(w io.Writer, account, object string) error {
+func UploadFile(w http.ResponseWriter, account, object string) error {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
@@ -20,7 +22,7 @@ func UploadFile(w io.Writer, account, object string) error {
 	defer client.Close()
 
 	// Open local file.
-	f, err := os.Open(object)
+	f, err := os.Open(fmt.Sprintf("%s%s", cloudimage.DirPath, object))
 	if err != nil {
 		return fmt.Errorf("os.Open: %v", err)
 	}

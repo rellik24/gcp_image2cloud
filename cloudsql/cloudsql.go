@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rellik24/image2cloud/cloudimage"
 	"github.com/rellik24/image2cloud/cloudkey"
 	"github.com/rellik24/image2cloud/cloudstorage"
 )
@@ -147,13 +148,15 @@ func getProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 
 	queryName := strings.Split(r.RequestURI, "?")[0]
+	token := r.FormValue("token")
+	account, err := authToken(token)
+	if err != nil {
+		return
+	}
 	switch queryName {
+	case "/api/list":
+		cloudstorage.ListObjects(w, account)
 	case "/api/download":
-		token := r.FormValue("token")
-		account, err := authToken(token)
-		if err != nil {
-			return
-		}
 		filename := r.FormValue("filename")
 		downloadFile := "exec dbo.DownloadImage @account, @filename"
 		var result int
@@ -163,7 +166,7 @@ func getProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			return
 		}
 		if result != 0 {
-			if err := cloudstorage.DownloadFile(w, filename, "download"); err != nil {
+			if err := cloudstorage.DownloadFile(w, fmt.Sprintf("%s/%s", account, filename), "download"); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
@@ -243,7 +246,7 @@ func postProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		}
 		fmt.Printf("JSON Web Token %s \n!", str)
 
-	case "/api/getImage", "/api/upload":
+	case "/api/upload":
 		token := r.FormValue("token")
 		account, err := authToken(token)
 		if err != nil {
@@ -252,18 +255,27 @@ func postProcess(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		switch queryName {
 		case "/api/upload":
 			filename := r.FormValue("filename")
+			// 壓縮檔案
+			if err := cloudimage.Compress(filename); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				log.Println(err.Error())
+				return
+			}
+			// 上傳
 			if err := cloudstorage.UploadFile(w, account, filename); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
 			}
-
+			// 上傳成功記錄 DB
 			uploadFile := "exec dbo.InsertImage @account, @filename"
 			if _, err := db.Exec(uploadFile, sql.Named("account", account), sql.Named("filename", filename)); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
 			}
+			// 移除暫存
+			os.Remove(fmt.Sprintf("%s%s", cloudimage.DirPath, filename))
 		}
 
 	default:

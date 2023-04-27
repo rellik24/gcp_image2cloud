@@ -15,5 +15,7 @@ vendor/
 server-ca.cer
 main
 *.png
+*.jpg
+*.jpeg
 *.json
 .tmp/

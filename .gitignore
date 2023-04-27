@@ -4,5 +4,7 @@ server-ca.cer
 .DS_Store
 main
 *.png
+*.jpg
+*.jpeg
 *.json
 .tmp/
