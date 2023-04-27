@@ -5,3 +5,4 @@ server-ca.cer
 main
 *.png
 *.json
+.tmp/

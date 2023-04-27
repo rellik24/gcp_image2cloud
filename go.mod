@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/storage v1.30.1
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	google.golang.org/api v0.117.0
 )
 
