@@ -1,16 +1,149 @@
-
 <!DOCTYPE html>
 <html>
+
 <head>
-	<title>Download File Example</title>
-</head>
-<body>
-	<h1>Download File Example</h1>
-	<button onclick="downloadFile()">Download</button>
+	<title>Local Storage Example</title>
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 	<script>
-		function downloadFile() {
-			window.location.href = "http://localhost:8080/api/download?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50IjoidmluY2VudDA0MjUiLCJleHAiOjE2ODI2MDU0NzEsInVpZCI6MiwidXNlcm5hbWUiOiJWaW5jZW50IEx1byJ9.xeph_TOf7_rsdOoAOVa5QXrkrNOxCI5cWicXV9ff-cY&filename=cat.png";
+		const token = localStorage.getItem('token');
+		// 如果存在，则显示 A 页面
+		if (token) {
+			document.addEventListener('DOMContentLoaded', () => {
+				document.getElementById('a-page').style.display = 'block';
+				// document.getElementById('username').textContent = "";
+			});
+		}
+		// 显示 B 页面
+		else {
+			document.addEventListener('DOMContentLoaded', () => {
+				document.getElementById('b-page').style.display = 'block';
+			});
+		}
+	</script>
+	<style>
+		table {
+			border-collapse: collapse;
+			width: 100%;
+		}
+
+		th,
+		td {
+			padding: 8px;
+			text-align: left;
+			border-bottom: 1px solid #ddd;
+		}
+
+		tr:hover {
+			background-color: #f5f5f5;
+		}
+
+		th {
+			background-color: #4CAF50;
+			color: white;
+		}
+	</style>
+</head>
+
+<body>
+	<!-- 登入後畫面 -->
+	<div id="a-page" style="display: none;">
+		<!-- <h1>Welcome back, <span id="username"></span>!</h1> -->
+		<p>You are now logged in.</p>
+		<h1>Cloud Image List</h1>
+		<table id="api-response">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Link</th>
+					<th>CreateTime</th>
+				</tr>
+			</thead>
+			<tbody>
+			</tbody>
+		</table>
+	</div>
+	<!-- 登入前畫面 -->
+	<div id="b-page" style="display: none;">
+		<h1>Please log in</h1>
+		<form id="login-form">
+			<div>
+				<label for="account">Account:</label>
+				<input type="text" id="account" name="account">
+			</div>
+			<div>
+				<label for="password">Password:</label>
+				<input type="password" id="password" name="password">
+			</div>
+			<div>
+				<button type="submit">Login</button>
+			</div>
+		</form>
+	</div>
+	<script>
+		$(function () {
+			$('#login-form').submit(function (event) {
+				event.preventDefault(); // 阻止表單自動提交
+				var account = $('#account').val();
+				var password = $('#password').val();
+				var url = '/api/login'; // API的URL
+				var data = { account: account, password: password };
+				// 使用fetch API進行請求
+				fetch(url, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify(data)
+				})
+					.then(function (response) {
+						if (!response.ok) {
+							throw new Error('Network response was not ok');
+						}
+						return response.json();
+					})
+					.then(function (json) {
+						if (json.token === "") {
+							throw new Error('');
+						}
+						// 獲得JWT並存儲到localStorage中
+						localStorage.setItem('token', json.token);
+						location.reload();
+					})
+					.catch(function (error) {
+						alert('Login failed');
+					});
+			});
+		});
+	</script>
+	<script>
+
+
+		// 如果存在，则显示 A 页面
+		if (token) {
+			// 使用fetch API讀取GET API回傳的JSON資料
+			fetch('/api/list?token=' + token)
+				.then(response => response.json())
+				.then(data => {
+					const table = document.getElementById('api-response').getElementsByTagName('tbody')[0];
+					// 迭代JSON資料，建立每個列表項目
+					data.forEach(item => {
+						const row = table.insertRow();
+						const nameCell = row.insertCell();
+						nameCell.textContent = item.name;
+
+						const linkCell = row.insertCell();
+						const link = document.createElement('a');
+						link.textContent = 'Download';
+						link.href = 'api/download?token=' + token + '&filename=' + item.name;
+						linkCell.appendChild(link);
+
+						const createTimeCell = row.insertCell();
+						createTimeCell.textContent = item.created;
+					});
+				})
+				.catch(error => console.error(error));
 		}
 	</script>
 </body>
+
 </html>
