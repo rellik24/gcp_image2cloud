@@ -6,15 +6,12 @@
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 	<script>
 		const token = localStorage.getItem('token');
-		// 如果存在，则显示 A 页面
 		if (token) {
 			document.addEventListener('DOMContentLoaded', () => {
 				document.getElementById('a-page').style.display = 'block';
 				// document.getElementById('username').textContent = "";
 			});
-		}
-		// 显示 B 页面
-		else {
+		} else {
 			document.addEventListener('DOMContentLoaded', () => {
 				document.getElementById('b-page').style.display = 'block';
 			});
@@ -116,16 +113,17 @@
 		});
 	</script>
 	<script>
-
-
-		// 如果存在，则显示 A 页面
 		if (token) {
 			// 使用fetch API讀取GET API回傳的JSON資料
-			fetch('/api/list?token=' + token)
+			fetch('/api/list', {
+				method: 'GET',
+				headers: {
+					'Authorization': 'Bearer ' + token
+				}
+			})
 				.then(response => response.json())
 				.then(data => {
 					const table = document.getElementById('api-response').getElementsByTagName('tbody')[0];
-					// 迭代JSON資料，建立每個列表項目
 					data.forEach(item => {
 						const row = table.insertRow();
 						const nameCell = row.insertCell();
@@ -134,7 +132,7 @@
 						const linkCell = row.insertCell();
 						const link = document.createElement('a');
 						link.textContent = 'Download';
-						link.href = 'api/download?token=' + token + '&filename=' + item.name;
+						link.href = 'api/download?Authorization="Bearer ' + token + '&filename=' + item.name;
 						linkCell.appendChild(link);
 
 						const createTimeCell = row.insertCell();

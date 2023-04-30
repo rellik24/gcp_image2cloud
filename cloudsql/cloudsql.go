@@ -24,6 +24,7 @@ var (
 
 type LoginRequest struct {
 	Account  string `json:"account"`
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
@@ -129,18 +130,19 @@ func getHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		return
 	}
 
-	queryName := strings.Split(r.RequestURI, "?")[0]
-	token := r.FormValue("token")
-	account, err := authToken(token)
+	accessToken := r.Header.Get("Authorization")
+	accessToken = strings.Split(accessToken, " ")[1]
+	account, err := authToken(accessToken)
 	if err != nil {
 		return
 	}
+	queryName := strings.Split(r.RequestURI, "?")[0]
 	switch queryName {
 	case "/api/list":
 		listQuery := "select i.IName, i.Created_at, i.Link from image i, Members m where m.Account = @account and m.uid = i.UID"
 		rows, err := db.Query(listQuery, sql.Named("account", account))
 		if err != nil {
-			log.Printf("Error: unable to add user: %v", err)
+			log.Printf("Error: unable get image list: %v", err.Error())
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
@@ -191,36 +193,35 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 	queryName := strings.Split(r.RequestURI, "?")[0]
 	switch queryName {
-	case "/api/addUser":
-		usr := r.FormValue("username")
-		account := r.FormValue("account")
-		pwd := r.FormValue("pwd")
-		if usr == "" || account == "" || pwd == "" {
+	case "/api/signUp":
+		var req LoginRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if req.Account == "" || req.Username == "" || req.Password == "" {
 			log.Printf("Add member error")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		pwd, err := cloudkey.SignMac(w, pwd)
+		pwd, err := cloudkey.SignMac(w, req.Password)
 		if err != nil {
 			log.Println(err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 		}
 		// [START cloud_sql_sqlserver_databasesql_connection]
 		addUser := "INSERT INTO Members (account, username, pwd, created_at) VALUES (@account, @username, @pwd, GETDATE())"
-		_, err = db.Exec(addUser, sql.Named("account", account), sql.Named("username", usr), sql.Named("pwd", pwd))
-		// [END cloud_sql_sqlserver_databasesql_connection]
-
-		if err != nil {
+		if _, err = db.Exec(addUser, sql.Named("account", req.Account), sql.Named("username", req.Username), sql.Named("pwd", pwd)); err != nil {
 			log.Printf("Error: unable to add user: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprintf(w, "Member successfully add: %s!", usr)
+		// [END cloud_sql_sqlserver_databasesql_connection]
+		fmt.Fprintf(w, "Member successfully add: %s!", req.Username)
 
 	case "/api/login":
 		var req LoginRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		if err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
