@@ -10,7 +10,14 @@ import (
 
 // compressJPG :
 func compressJPG(filename string) error {
-	file, err := os.Open(filename)
+	newFilename := fmt.Sprintf("%st_%s", DirPath, filename)
+	filename = fmt.Sprintf("%s%s", DirPath, filename)
+
+	if err := os.Rename(filename, newFilename); err != nil {
+		return err
+	}
+
+	file, err := os.Open(newFilename)
 	if err != nil {
 		return err
 	}
@@ -32,7 +39,7 @@ func compressJPG(filename string) error {
 			return err
 		}
 	}
-	outfile, err := os.Create(fmt.Sprintf("%s%s", DirPath, filename))
+	outfile, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
@@ -43,5 +50,7 @@ func compressJPG(filename string) error {
 	if err != nil {
 		return err
 	}
+
+	os.Remove(newFilename)
 	return nil
 }

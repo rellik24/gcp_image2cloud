@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -187,7 +188,7 @@ func getHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 // postHandler:
 func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	if err := r.ParseForm(); err != nil {
-		log.Printf("AddUser: failed to parse form: %v", err)
+		log.Printf("Post: failed to parse form: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -256,26 +257,54 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		resp = LoginResponse{Token: token, Result: true}
 		json.NewEncoder(w).Encode(resp)
 	case "/api/upload":
-		token := r.FormValue("token")
-		account, err := authToken(token)
+		accessToken := r.Header.Get("Authorization")
+		accessToken = strings.Split(accessToken, " ")[1]
+		account, err := authToken(accessToken)
 		if err != nil {
+			http.Error(w, "token error", http.StatusBadRequest)
 			return
 		}
 		switch queryName {
 		case "/api/upload":
-			filename := r.FormValue("filename")
-			// 壓縮檔案
-			if err := cloudimage.Compress(filename); err != nil {
+			// 取得檔案
+			file, header, err := r.FormFile("file")
+			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
 			}
+			defer file.Close()
+
+			if _, err := os.Stat(cloudimage.DirPath); os.IsNotExist(err) {
+				err = os.Mkdir(cloudimage.DirPath, 0755)
+				if err != nil {
+					return
+				}
+			}
+
+			// 儲存檔案
+			filename := header.Filename
+			out, err := os.Create(fmt.Sprintf("%s%s", cloudimage.DirPath, filename))
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				log.Println(err.Error())
+				return
+			}
+			defer out.Close()
+
+			if _, err := io.Copy(out, file); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				log.Println(err.Error())
+				return
+			}
+
 			// 上傳
 			if err := cloudstorage.UploadFile(w, account, filename); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
 			}
+
 			// 上傳成功記錄 DB
 			uploadFile := "exec dbo.InsertImage @account, @filename"
 			if _, err := db.Exec(uploadFile, sql.Named("account", account), sql.Named("filename", filename)); err != nil {
@@ -283,8 +312,12 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 				log.Println(err.Error())
 				return
 			}
+
 			// 移除暫存
 			os.Remove(fmt.Sprintf("%s%s", cloudimage.DirPath, filename))
+
+			// 回傳成功訊息
+			w.WriteHeader(http.StatusOK)
 		}
 
 	default:

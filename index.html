@@ -46,6 +46,10 @@
 	<div id="a-page" style="display: none;">
 		<!-- <h1>Welcome back, <span id="username"></span>!</h1> -->
 		<p>You are now logged in.</p>
+		<form id="uploadForm">
+			<input type="file" name="file" id="fileInput">
+			<button type="submit">Upload</button>
+		  </form>
 		<h1>Cloud Image List</h1>
 		<table id="api-response">
 			<thead>
@@ -142,6 +146,36 @@
 				.catch(error => console.error(error));
 		}
 	</script>
+	<script>  
+		const uploadForm = document.getElementById("uploadForm");
+		const fileInput = document.getElementById("fileInput");
+  
+		uploadForm.addEventListener("submit", (event) => {
+		  event.preventDefault();
+  
+		  const formData = new FormData();
+		  formData.append("file", fileInput.files[0]);
+  
+		  fetch("/api/upload", {
+			method: "POST",
+			headers: {
+			  "Authorization": `Bearer ${token}`
+			},
+			body: formData
+		  })
+		  .then(response => {
+			if (response.ok) {
+			  alert("Upload successful!");
+			  location.reload();
+			} else {
+			  alert("Upload failed!");
+			}
+		  })
+		  .catch(error => {
+			console.error(error);
+		  });
+		});
+	  </script>
 </body>
 
 </html>
