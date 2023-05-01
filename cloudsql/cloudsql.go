@@ -30,8 +30,7 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token  string `json:"token"`
-	Result bool   `json:"result"`
+	AccessToken string `json:"accessToken"`
 }
 
 // getDB lazily instantiates a database connection pool. Users of Cloud Run or
@@ -135,6 +134,7 @@ func getHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	accessToken = strings.Split(accessToken, " ")[1]
 	account, err := authToken(accessToken)
 	if err != nil {
+		http.Error(w, "Invalid Access Token", http.StatusForbidden)
 		return
 	}
 	queryName := strings.Split(r.RequestURI, "?")[0]
@@ -240,7 +240,7 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 
 		var uid int
 		var username string
-		resp := LoginResponse{Token: "", Result: false}
+		resp := LoginResponse{AccessToken: ""}
 		w.Header().Set("Content-Type", "application/json")
 
 		if err := db.QueryRow(verifyUser, sql.Named("account", req.Account), sql.Named("pwd", pwd)).Scan(&uid, &username); err != nil {
@@ -248,20 +248,20 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			json.NewEncoder(w).Encode(resp)
 			return
 		}
-		token, err := cloudkey.CreateToken(uid, req.Account, username)
+		accessToken, err := cloudkey.CreateToken(uid, req.Account, username)
 		if err != nil {
 			fmt.Println(err.Error())
 			json.NewEncoder(w).Encode(resp)
 			return
 		}
-		resp = LoginResponse{Token: token, Result: true}
+		resp = LoginResponse{AccessToken: accessToken}
 		json.NewEncoder(w).Encode(resp)
 	case "/api/upload":
 		accessToken := r.Header.Get("Authorization")
 		accessToken = strings.Split(accessToken, " ")[1]
 		account, err := authToken(accessToken)
 		if err != nil {
-			http.Error(w, "token error", http.StatusBadRequest)
+			http.Error(w, "Invalid Access Token", http.StatusForbidden)
 			return
 		}
 		switch queryName {
@@ -326,15 +326,15 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 }
 
 // authToken :
-func authToken(token string) (string, error) {
-	claim, err := cloudkey.ValidateToken(token)
+func authToken(accessToken string) (string, error) {
+	claim, err := cloudkey.ValidateToken(accessToken)
 	if err != nil {
 		fmt.Println(err.Error())
 		return "", err
 	}
 	account, ok := claim["account"].(string)
 	if !ok {
-		return "", errors.New("parse token error")
+		return "", errors.New("parse access token error")
 	}
 	return account, nil
 }
