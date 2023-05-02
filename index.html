@@ -6,7 +6,6 @@
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 	<script>
 		const accessToken = localStorage.getItem('accessToken');
-		console.log(9, "accessToken",accessToken)
 		if (accessToken) {
 			document.addEventListener('DOMContentLoaded', () => {
 				document.getElementById('a-page').style.display = 'block';
@@ -132,7 +131,6 @@
 				}
 			})
 				.then(function (response) {
-					console.log(135, response)
 					if (response.status === 403) {
 						localStorage.removeItem("accessToken");
 						location.reload();

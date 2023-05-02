@@ -250,7 +250,7 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		}
 		accessToken, err := cloudkey.CreateToken(uid, req.Account, username)
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 			json.NewEncoder(w).Encode(resp)
 			return
 		}
@@ -329,7 +329,7 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 func authToken(accessToken string) (string, error) {
 	claim, err := cloudkey.ValidateToken(accessToken)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return "", err
 	}
 	account, ok := claim["account"].(string)
