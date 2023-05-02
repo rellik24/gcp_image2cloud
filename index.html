@@ -147,8 +147,39 @@
 
 						const linkCell = row.insertCell();
 						const link = document.createElement('a');
-						link.textContent = 'Download';
-						link.href = 'api/download?Authorization="Bearer ' + accessToken + '&filename=' + item.name;
+						link.textContent = "Download";
+						link.href = `/api/download?filename=${item.name}`;
+						link.addEventListener("click", (event) => {
+							event.preventDefault();
+							fetch(`/api/download?filename=${item.name}`, {
+								method: "GET",
+								headers: {
+									Authorization: `Bearer ${accessToken}`,
+								},
+							})
+								.then((response) => {
+									if (response.ok) {
+										const filename = "download";
+										return response.blob().then((blob) => ({
+											blob,
+											filename,
+										}));
+									} else {
+										throw new Error(
+											`Failed to download file: ${response.statusText}`
+										);
+									}
+								})
+								.then(({ blob, filename }) => {
+									const a = document.createElement("a");
+									const url = URL.createObjectURL(blob);
+									a.href = url;
+									a.download = filename;
+									a.click();
+									URL.revokeObjectURL(url);
+								})
+								.catch((error) => console.error(error));
+						});
 						linkCell.appendChild(link);
 
 						const createTimeCell = row.insertCell();
