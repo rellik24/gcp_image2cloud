@@ -62,6 +62,7 @@
 					<th>Name</th>
 					<th>Link</th>
 					<th>CreateTime</th>
+					<th>Version</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -148,10 +149,10 @@
 						const linkCell = row.insertCell();
 						const link = document.createElement('a');
 						link.textContent = "Download";
-						link.href = `/api/download?filename=${item.name}`;
+						link.href = `/api/download?filename=${item.link}`;
 						link.addEventListener("click", (event) => {
 							event.preventDefault();
-							fetch(`/api/download?filename=${item.name}`, {
+							fetch(`/api/download?filename=${item.link}`, {
 								method: "GET",
 								headers: {
 									Authorization: `Bearer ${accessToken}`,
@@ -184,6 +185,8 @@
 
 						const createTimeCell = row.insertCell();
 						createTimeCell.textContent = item.created;
+						const versionCell = row.insertCell();
+						versionCell.textContent = item.version;
 					});
 				})
 				.catch(error => console.error(error));

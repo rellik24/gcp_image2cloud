@@ -120,6 +120,7 @@ type Image struct {
 	Name    string `json:"name"`
 	Created string `json:"created"`
 	Link    string `json:"link"`
+	Version string `json:"version"`
 }
 
 // getHandler:
@@ -140,7 +141,7 @@ func getHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	queryName := strings.Split(r.RequestURI, "?")[0]
 	switch queryName {
 	case "/api/list":
-		listQuery := "select i.IName, i.Created_at, i.Link from image i, Members m where m.Account = @account and m.uid = i.UID"
+		listQuery := "select i.Name, i.CreatedTime, i.Link, i.Version from images i, Members m where m.Account = @account and m.mid = i.mid"
 		rows, err := db.Query(listQuery, sql.Named("account", account))
 		if err != nil {
 			log.Printf("Error: unable get image list: %v", err.Error())
@@ -150,7 +151,7 @@ func getHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		var result []Image
 		for rows.Next() {
 			var img Image
-			err := rows.Scan(&img.Name, &img.Created, &img.Link)
+			err := rows.Scan(&img.Name, &img.Created, &img.Link, &img.Version)
 			if err != nil {
 				return
 			}
@@ -171,7 +172,7 @@ func getHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			return
 		}
 		if result != 0 {
-			if err := cloudstorage.DownloadFile(w, fmt.Sprintf("%s/%s", account, filename), "download"); err != nil {
+			if err := cloudstorage.DownloadFile(w, filename, "download"); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
@@ -205,14 +206,14 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		pwd, err := cloudkey.SignMac(w, req.Password)
+		password, err := cloudkey.SignMac(w, req.Password)
 		if err != nil {
 			log.Println(err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 		}
 		// [START cloud_sql_sqlserver_databasesql_connection]
-		addUser := "INSERT INTO Members (account, username, pwd, created_at) VALUES (@account, @username, @pwd, GETDATE())"
-		if _, err = db.Exec(addUser, sql.Named("account", req.Account), sql.Named("username", req.Username), sql.Named("pwd", pwd)); err != nil {
+		addUser := "INSERT INTO Members (account, username, userpassword, createdTime) VALUES (@account, @username, @password, GETDATE())"
+		if _, err = db.Exec(addUser, sql.Named("account", req.Account), sql.Named("username", req.Username), sql.Named("password", password)); err != nil {
 			log.Printf("Error: unable to add user: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
@@ -231,24 +232,24 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		pwd, err := cloudkey.SignMac(w, req.Password)
+		password, err := cloudkey.SignMac(w, req.Password)
 		if err != nil {
 			log.Println(err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 		}
-		verifyUser := "EXEC dbo.VerifyUser @account, @pwd"
+		verifyUser := "EXEC dbo.VerifyUser @account, @password"
 
-		var uid int
+		var mid int
 		var username string
 		resp := LoginResponse{AccessToken: ""}
 		w.Header().Set("Content-Type", "application/json")
 
-		if err := db.QueryRow(verifyUser, sql.Named("account", req.Account), sql.Named("pwd", pwd)).Scan(&uid, &username); err != nil {
+		if err := db.QueryRow(verifyUser, sql.Named("account", req.Account), sql.Named("password", password)).Scan(&mid, &username); err != nil {
 			log.Printf("Error: unable to login: %v", err)
 			json.NewEncoder(w).Encode(resp)
 			return
 		}
-		accessToken, err := cloudkey.CreateToken(uid, req.Account, username)
+		accessToken, err := cloudkey.CreateToken(mid, req.Account, username)
 		if err != nil {
 			log.Println(err.Error())
 			json.NewEncoder(w).Encode(resp)
@@ -284,7 +285,15 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 
 			// 儲存檔案
 			filename := header.Filename
-			out, err := os.Create(fmt.Sprintf("%s%s", cloudimage.DirPath, filename))
+			var version int
+
+			checkVersion := "select count(*)+1 from images i , members m where m.account = @account and  i.Name = @filename and i.mid = m.mid"
+			if err := db.QueryRow(checkVersion, sql.Named("account", account), sql.Named("filename", filename)).Scan(&version); err != nil {
+				return
+			}
+			tmp := strings.Split(header.Filename, ".")
+			linkName := fmt.Sprintf("%s_v%d.%s", tmp[0], version, tmp[1])
+			out, err := os.Create(fmt.Sprintf("%s%s", cloudimage.DirPath, linkName))
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				log.Println(err.Error())
@@ -299,15 +308,15 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			}
 
 			// 上傳
-			if err := cloudstorage.UploadFile(w, account, filename); err != nil {
+			if err := cloudstorage.UploadFile(w, account, linkName); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
 			}
 
 			// 上傳成功記錄 DB
-			uploadFile := "exec dbo.InsertImage @account, @filename"
-			if _, err := db.Exec(uploadFile, sql.Named("account", account), sql.Named("filename", filename)); err != nil {
+			uploadFile := "exec dbo.InsertImage @account, @filename, @linkname, @version"
+			if _, err := db.Exec(uploadFile, sql.Named("account", account), sql.Named("filename", filename), sql.Named("linkName", linkName), sql.Named("version", version)); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
