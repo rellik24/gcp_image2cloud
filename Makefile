@@ -5,7 +5,11 @@ all:
 clean: main
 	rm main
 
-deploy:
-	gcloud run deploy \
-  	--add-cloudsql-instances rellikcloudimage:us-central1:image-sql \
-  	--vpc-connector="quickstart-instance" --vpc-egress=all-traffic \
+build:
+	gcloud builds submit --tag gcr.io/rellikcloudimage/image2cloud
+
+
+deploy: 
+	gcloud run deploy image2cloud \
+     --image gcr.io/rellikcloudimage/image2cloud \
+     --allow-unauthenticated
