@@ -117,10 +117,12 @@ func API(w http.ResponseWriter, r *http.Request) {
 }
 
 type Image struct {
-	Name    string `json:"name"`
-	Created string `json:"created"`
-	Link    string `json:"link"`
-	Version string `json:"version"`
+	Name     string `json:"name"`
+	FileSize string `json:"filesize"`
+	FileUnit string `json:"fileunit"`
+	Created  string `json:"created"`
+	Link     string `json:"link"`
+	Version  string `json:"version"`
 }
 
 // getHandler:
@@ -141,7 +143,7 @@ func getHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	queryName := strings.Split(r.RequestURI, "?")[0]
 	switch queryName {
 	case "/api/list":
-		listQuery := "select i.Name, i.CreatedTime, i.Link, i.Version from images i, Members m where m.Account = @account and m.mid = i.mid"
+		listQuery := "exec ListImage @account"
 		rows, err := db.Query(listQuery, sql.Named("account", account))
 		if err != nil {
 			log.Printf("Error: unable get image list: %v", err.Error())
@@ -151,8 +153,7 @@ func getHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		var result []Image
 		for rows.Next() {
 			var img Image
-			err := rows.Scan(&img.Name, &img.Created, &img.Link, &img.Version)
-			if err != nil {
+			if err := rows.Scan(&img.Name, &img.FileSize, &img.FileUnit, &img.Created, &img.Link, &img.Version); err != nil {
 				return
 			}
 			if t, err := time.Parse(time.RFC3339, img.Created); err == nil {
@@ -287,7 +288,7 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			filename := header.Filename
 			var version int
 
-			checkVersion := "select count(*)+1 from images i , members m where m.account = @account and  i.Name = @filename and i.mid = m.mid"
+			checkVersion := "select count(*)+1 from images i , members m where m.account = @account and i.Name = @filename and i.mid = m.mid"
 			if err := db.QueryRow(checkVersion, sql.Named("account", account), sql.Named("filename", filename)).Scan(&version); err != nil {
 				return
 			}
@@ -306,6 +307,21 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 				log.Println(err.Error())
 				return
 			}
+			tmpFile := fmt.Sprintf("%s%s", cloudimage.DirPath, linkName)
+			fileInfo, err := os.Stat(tmpFile)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
+			}
+			fileSize := float64(fileInfo.Size()) / 1024.0 / 1024.0
+			var sizeUnit string
+			if fileSize < 1.0 {
+				fileSize *= 1024.0
+				sizeUnit = "KB"
+			} else {
+				sizeUnit = "MB"
+			}
+			fileSizeStr := fmt.Sprintf("%.2f", fileSize)
 
 			// 上傳
 			if err := cloudstorage.UploadFile(w, account, linkName); err != nil {
@@ -315,15 +331,15 @@ func postHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 			}
 
 			// 上傳成功記錄 DB
-			uploadFile := "exec dbo.InsertImage @account, @filename, @linkname, @version"
-			if _, err := db.Exec(uploadFile, sql.Named("account", account), sql.Named("filename", filename), sql.Named("linkName", linkName), sql.Named("version", version)); err != nil {
+			uploadFile := "exec dbo.InsertImage @account, @filename, @fileSize, @sizeUnit, @linkname, @version"
+			if _, err := db.Exec(uploadFile, sql.Named("account", account), sql.Named("filename", filename), sql.Named("fileSize", fileSizeStr), sql.Named("sizeUnit", sizeUnit), sql.Named("linkName", linkName), sql.Named("version", version)); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				log.Println(err.Error())
 				return
 			}
 
 			// 移除暫存
-			os.Remove(fmt.Sprintf("%s%s", cloudimage.DirPath, filename))
+			os.Remove(tmpFile)
 
 			// 回傳成功訊息
 			w.WriteHeader(http.StatusOK)

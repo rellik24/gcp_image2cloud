@@ -38,6 +38,11 @@
 			background-color: #4CAF50;
 			color: white;
 		}
+
+		img {
+			max-width: 100px;
+			max-height: 100px;
+		}
 	</style>
 </head>
 
@@ -60,9 +65,12 @@
 			<thead>
 				<tr>
 					<th>Name</th>
+					<th>FileSize</th>
+					<th>FileUnit</th>
 					<th>Link</th>
 					<th>CreateTime</th>
 					<th>Version</th>
+					<th>Image</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -146,6 +154,12 @@
 						const nameCell = row.insertCell();
 						nameCell.textContent = item.name;
 
+						const sizeCell = row.insertCell();
+						sizeCell.textContent = item.filesize;
+
+						const unitCell = row.insertCell();
+						unitCell.textContent = item.fileunit;
+
 						const linkCell = row.insertCell();
 						const link = document.createElement('a');
 						link.textContent = "Download";
@@ -187,6 +201,9 @@
 						createTimeCell.textContent = item.created;
 						const versionCell = row.insertCell();
 						versionCell.textContent = item.version;
+						const imgCell = row.insertCell();
+						const imgLink = "https://storage.cloud.google.com/image-list/" + item.link
+						imgCell.innerHTML = '<a href="' + imgLink + '" target="_blank"><img src="' + imgLink + '" alt="Image"><a>';
 					});
 				})
 				.catch(error => console.error(error));
