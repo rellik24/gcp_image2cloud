@@ -20,7 +20,7 @@ var (
 )
 
 func main() {
-	log.Print("starting server...")
+	log.Print("starting server...haha")
 
 	Init()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
